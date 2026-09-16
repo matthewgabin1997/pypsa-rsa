@@ -4,5 +4,7 @@
     "terminal.integrated.fontSize": 10,
     "scm.inputFontSize": 10,
     "cSpell.language": "en-GB",
-    "taipyStudio.gUI.elementsFilePaths": []
+    "taipyStudio.gUI.elementsFilePaths": [],
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }
