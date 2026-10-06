@@ -14401,3 +14401,10 @@ Set parameter LicenseID to value 2864772
 Set parameter LogFile to value "gurobi.log"
 Using license file /home/matthew/gurobi.lic
 Academic license - for non-commercial use only - expires 2027-09-16
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Tue Oct  6 13:21:42 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
