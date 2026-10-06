@@ -27,12 +27,12 @@ This document describes the current state of the PyPSA-RSA carbon-tax model: wha
 
 2×2 matrix isolating the CT price signal from revenue recycling:
 
-| Scenario | CT in optimisation? | Revenue recycling? | Description |
-|---|---|---|---|
-| **P0_BASE** | No | No | IRP baseline — no CT, no recycling |
-| **P0_BASE_R** | No | Yes | Baseline + mandatory RE reinvestment |
-| **P0_CT** | Yes (462 R/tCO₂) | No | CT as pure price signal |
-| **P0_CT_R** | Yes (462 R/tCO₂) | Yes | CT + mandatory RE reinvestment |
+| Scenario            | CT in optimisation? | Revenue recycling? | Description                          |
+| ------------------- | ------------------- | ------------------ | ------------------------------------ |
+| **P0_BASE**   | No                  | No                 | IRP baseline — no CT, no recycling  |
+| **P0_BASE_R** | No                  | Yes                | Baseline + mandatory RE reinvestment |
+| **P0_CT**     | Yes (462 R/tCO₂)   | No                 | CT as pure price signal              |
+| **P0_CT_R**   | Yes (462 R/tCO₂)   | Yes                | CT + mandatory RE reinvestment       |
 
 Three core comparisons: BASE vs CT (price-signal effect) · BASE vs BASE_R (recycling effect alone) · CT vs CT_R (recycling on top of an existing price signal).
 
@@ -45,8 +45,6 @@ P1_BASE, P1_BASE_R, P1_CT, P1_CT_R use the same 2×2 logic but `simulation_years
 ---
 
 ## 3. What Changed and Why (condensed changelog)
-
-
 
 - **2026-09-13 — Enabled endogenous coal retirement** (`unit_committment: 0→1`, `endogenous_coal_decom: 0→1`, P0 only). Motivation: with these off, CT can change *how much* coal dispatches but never *when* it retires — doesn't let the model test whether CT accelerates retirement, a core Paper 0 question. `endogenous_coal_decom` is only read inside `add_coal_decom()` (`prepare_and_solve_network.py`), itself only called when `unit_committment=1` — both flags must be set together or the retirement variable (`Generator-p_nom_ret`) doesn't exist. With both on, the retirement constraint becomes a floor (`p_nom_ret >= phased_decom_schedule`) instead of an exact match — the model can retire earlier if uneconomic.
   `dispatch_coal_flex` stays at `SL_0` (no intra-year cycling — deliberately) even with UC on: MSL already applies unconditionally via `set_coal_msl()` regardless of UC, so coal can already track the CT price signal between its MSL floor and `p_max_pu` every hour. `SL_0` withholds only the ability to shut a block fully off and restart — keeping it off isolates the CT-retirement effect from a second free variable (cycling behaviour) and is the stricter test (upper bound on the CT retirement effect; enabling cycling would tend to reduce it).
@@ -70,89 +68,101 @@ P1_BASE, P1_BASE_R, P1_CT, P1_CT_R use the same 2×2 logic but `simulation_years
 All four P0 scenarios (`P0_BASE`, `P0_BASE_R`, `P0_CT`, `P0_CT_R`) share every column below **except** `carbon_tax` and `carbon_constraints`.
 
 ### 4.1 Solver & run control
-| Parameter | Value |
-|---|---|
-| `solver` | `gurobi` |
+
+| Parameter        | Value                                                                    |
+| ---------------- | ------------------------------------------------------------------------ |
+| `solver`       | `gurobi`                                                               |
 | `run_scenario` | `true` (all four P0 rows active; all four P1 rows currently `False`) |
 
 ### 4.2 Time & weather
-| Parameter | Value | Notes |
-|---|---|---|
-| `simulation_years` | `2025, 2030` | 2025 anchors existing fleet, 2030 is the reported/optimised year |
-| `options` | **`LC-2190h`** (as of 2026-09-15, active test run) | Production default is `LC` (full 8760h, no averaging). See §9 for what `LC-Nh` actually does — it's a block-mean average, not TSAM day-selection. |
-| `weather` | `W_P50` | Median weather year, mapped to historical 2018 |
+
+| Parameter            | Value                                                      | Notes                                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `simulation_years` | `2025, 2030`                                             | 2025 anchors existing fleet, 2030 is the reported/optimised year                                                                                       |
+| `options`          | **`LC-2190h`** (as of 2026-09-15, active test run) | Production default is`LC` (full 8760h, no averaging). See §9 for what `LC-Nh` actually does — it's a block-mean average, not TSAM day-selection. |
+| `weather`          | `W_P50`                                                  | Median weather year, mapped to historical 2018                                                                                                         |
 
 ### 4.3 Network & spatial resolution
-| Parameter | Value |
-|---|---|
-| `regions` | `10` (P0) / `1` (P1) |
-| `resource_area` | `redz_corridors_eia` — broadest renewable candidate site set |
-| `transmission_grid` | `existing+tdp` — existing 400kV grid + Eskom TDP 2023 planned lines |
-| `line_expansion` | `copt` — endogenous expansion enabled on existing corridors (optimizer decides) |
+
+| Parameter             | Value                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| `regions`           | `10` (P0) / `1` (P1)                                                           |
+| `resource_area`     | `redz_corridors_eia` — broadest renewable candidate site set                    |
+| `transmission_grid` | `existing+tdp` — existing 400kV grid + Eskom TDP 2023 planned lines             |
+| `line_expansion`    | `copt` — endogenous expansion enabled on existing corridors (optimizer decides) |
 
 ### 4.4 Coal fleet
-| Parameter | Value |
-|---|---|
-| `fixed_conventional` | `BASE_PMR1b` |
-| `phased_decom` | `DELAYED_ESKOM_2035` (floor schedule; retirement can happen earlier — see §3) |
-| `override_coal_msl` | `0.65` |
-| `coal_ramp_rate_multiplier` | `1` (P0) / `1.5` (P1) |
-| `annual_availability` | `EAF_60` (60% EAF) |
-| `unit_committment` | `1` (P0) / `0` (P1) |
-| `endogenous_coal_decom` | `1` (P0) / `0` (P1) |
-| `dispatch_coal_flex` | `SL_0` (no intra-year cycling) |
+
+| Parameter                     | Value                                                                             |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `fixed_conventional`        | `BASE_PMR1b`                                                                    |
+| `phased_decom`              | `DELAYED_ESKOM_2035` (floor schedule; retirement can happen earlier — see §3) |
+| `override_coal_msl`         | `0.65`                                                                          |
+| `coal_ramp_rate_multiplier` | `1` (P0) / `1.5` (P1)                                                         |
+| `annual_availability`       | `EAF_60` (60% EAF)                                                              |
+| `unit_committment`          | `1` (P0) / `0` (P1)                                                           |
+| `endogenous_coal_decom`     | `1` (P0) / `0` (P1)                                                           |
+| `dispatch_coal_flex`        | `SL_0` (no intra-year cycling)                                                  |
 
 ### 4.5 Costs & investment
-| Parameter | Value |
-|---|---|
-| `extendable_parameters` | `BASE_PMR1b` — Wind 24,739 / Solar 15,690 / OCGT 15,715 / Battery 4h 13,581 ZAR/kWel (2030 overnight capex) |
-| `extendable_fuel_prices` / `fixed_fuel_prices` | `BASE_PMR1b` — coal 40.0→58.9 R/GJ (2025→2030) |
-| `global_discount_rate` | `0.092` (9.2%) |
-| `extendable_active` | `BASE` |
-| `variable_storage_vom` | `1` |
+
+| Parameter                                          | Value                                                                                                          |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `extendable_parameters`                          | `BASE_PMR1b` — Wind 24,739 / Solar 15,690 / OCGT 15,715 / Battery 4h 13,581 ZAR/kWel (2030 overnight capex) |
+| `extendable_fuel_prices` / `fixed_fuel_prices` | `BASE_PMR1b` — coal 40.0→58.9 R/GJ (2025→2030)                                                            |
+| `global_discount_rate`                           | `0.092` (9.2%)                                                                                               |
+| `extendable_active`                              | `BASE`                                                                                                       |
+| `variable_storage_vom`                           | `1`                                                                                                          |
 
 ### 4.6 Emissions
-| Parameter | Value |
-|---|---|
+
+| Parameter                                      | Value                                             |
+| ---------------------------------------------- | ------------------------------------------------- |
 | `fixed_emissions` / `extendable_emissions` | `BASE` (no fuel-switching / no H₂ assumptions) |
 
 ### 4.7 Build constraints
-| Parameter | Value | Rationale |
-|---|---|---|
-| `extendable_min_total` | `UNC` | No IRP pipeline floor — investment is fully endogenous, see §3 |
-| `extendable_max_total` | `UNC` | No upper cap |
-| `extendable_max_annual` | `UNC` | No annual build-rate cap, any scenario — see §3 |
-| `extendable_min_annual` | `UNC` | No annual minimum |
+
+| Parameter                 | Value   | Rationale                                                        |
+| ------------------------- | ------- | ---------------------------------------------------------------- |
+| `extendable_min_total`  | `UNC` | No IRP pipeline floor — investment is fully endogenous, see §3 |
+| `extendable_max_total`  | `UNC` | No upper cap                                                     |
+| `extendable_max_annual` | `UNC` | No annual build-rate cap, any scenario — see §3                |
+| `extendable_min_annual` | `UNC` | No annual minimum                                                |
 
 ### 4.8 Fixed existing assets
-| Parameter | Value |
-|---|---|
+
+| Parameter                                | Value    |
+| ---------------------------------------- | -------- |
 | `fixed_renewables` / `fixed_storage` | `BASE` |
 
 ### 4.9 Operational constraints
-| Parameter | Value |
-|---|---|
-| `operational_limits` | `NO_MIN_GAS` (gas dispatches only when economic) |
+
+| Parameter                | Value                                                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `operational_limits`   | `NO_MIN_GAS` (gas dispatches only when economic)                                                                                                                                                      |
 | `operational_reserves` | `BASE` — **dead in current code**, `set_operating_reserves()` call is commented out (`prepare_and_solve_network.py:467`); the sheet for this label only still exists in an archived folder |
-| `outage_profiles` | `BASE` |
-| `aux_stg_feed` | `DIESEL_LNG` |
+| `outage_profiles`      | `BASE`                                                                                                                                                                                                |
+| `aux_stg_feed`         | `DIESEL_LNG`                                                                                                                                                                                          |
 
 ### 4.10 Reserve margin & capacity credits
-| Parameter | Value |
-|---|---|
-| `reserve_margin` | `RES_MRGN_10` — 10% above peak, active from 2030 |
+
+| Parameter            | Value                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reserve_margin`   | `RES_MRGN_10` — 10% above peak, active from 2030                                                                                                                             |
 | `capacity_credits` | `BASE2`: coal 53% · nuclear/OCGT/CCGT/PHS/biomass 100% · battery 4h 50%, battery 8h 75%, battery 1h 25% · solar CSP 50% · wind/wind_low 10% · solar PV (all variants) 0% |
 
 ### 4.11 Demand
-| Parameter | Value |
-|---|---|
+
+| Parameter           | Value                                   |
+| ------------------- | --------------------------------------- |
 | `load_trajectory` | `LOWDelEVs` (P0) / `IRP24_MOD` (P1) |
 
 ### 4.12 Carbon tax & revenue recycling
-| Parameter | BASE | BASE_R | CT | CT_R |
-|---|---|---|---|---|
-| `carbon_tax` | `none` | `none` | `CT_2030` | `CT_2030` |
-| `carbon_constraints` | `none` | `CT_REINVEST` | `none` | `CT_REINVEST` |
+
+| Parameter              | BASE     | BASE_R          | CT          | CT_R            |
+| ---------------------- | -------- | --------------- | ----------- | --------------- |
+| `carbon_tax`         | `none` | `none`        | `CT_2030` | `CT_2030`     |
+| `carbon_constraints` | `none` | `CT_REINVEST` | `none`    | `CT_REINVEST` |
 
 `CT_2030` trajectory (`emissions.xlsx::carbon_tax`): 0 R/t every year except **462 R/t in 2030**. `CT_2050` (P1 only): 190 (2024) → 462 (2030) → 894 (2035) → 1326 (2040) → 1757 (2045) → 2189 (2050) R/tCO₂.
 
@@ -215,16 +225,16 @@ Existing corridors only — no new (non-existing) corridors modelled. Existing l
 
 All changes marked `# AM added` / `# AM adjusted` in source.
 
-| File | Change |
-|---|---|
-| `custom_constraints.py` | `add_ct_reinvestment_constraint()` (P0, ≤2 periods) and `add_ct_reinvestment_constraint_multiyear()` (P1, >2 periods) — CT revenue recycling, see §5 |
-| `prepare_and_solve_network.py` | CT reinvestment hook (auto-selects P0 vs P1 function by period count); `n.statistics()` wrapped in try/except (PyPSA 0.35.2 bug on certain configs); `set_extendable_limits_global()` corrects IRP cumulative targets to per-period net-new-build deltas via `electricity.existing_capacity_carriers` mapping in `config.yaml` |
-| `_helpers.py` | Excel `TRUE`/`FALSE` string normalisation; `aggregate_costs()` multi-invest check fixed to `len(n.investment_periods) > 0` (PyPSA 0.35.x API change) |
-| `add_electricity.py` | Multi-node renewable profile bus assignment fix (SIGSEGV, see §3); `update_transmission_costs()` computes extendable-link capital cost from `length` + `hvac_overhead` config |
-| `base_network.py` | Transmission expansion setup from `line_expansion` in SCENARIO_SETUP |
-| `build_topology.py` | Column rename `capacity_expansion_years` → `simulation_years` |
-| `Snakefile` | `_R` dependency lambda (wait for base scenario's `solved.nc`); plot rules integrated into `solve_all` |
-| `scripts/plot_network_sa.py` | Map + cost-bar-chart plotting; carrier colours/nice-names in `config.yaml::plotting`; costs displayed as `×1000` (see §3 — this scaling is applied consistently at plot time, only the raw `solved.nc` export is unscaled) |
+| File                             | Change                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom_constraints.py`        | `add_ct_reinvestment_constraint()` (P0, ≤2 periods) and `add_ct_reinvestment_constraint_multiyear()` (P1, >2 periods) — CT revenue recycling, see §5                                                                                                                                                                           |
+| `prepare_and_solve_network.py` | CT reinvestment hook (auto-selects P0 vs P1 function by period count);`n.statistics()` wrapped in try/except (PyPSA 0.35.2 bug on certain configs); `set_extendable_limits_global()` corrects IRP cumulative targets to per-period net-new-build deltas via `electricity.existing_capacity_carriers` mapping in `config.yaml` |
+| `_helpers.py`                  | Excel`TRUE`/`FALSE` string normalisation; `aggregate_costs()` multi-invest check fixed to `len(n.investment_periods) > 0` (PyPSA 0.35.x API change)                                                                                                                                                                           |
+| `add_electricity.py`           | Multi-node renewable profile bus assignment fix (SIGSEGV, see §3);`update_transmission_costs()` computes extendable-link capital cost from `length` + `hvac_overhead` config                                                                                                                                                   |
+| `base_network.py`              | Transmission expansion setup from`line_expansion` in SCENARIO_SETUP                                                                                                                                                                                                                                                                 |
+| `build_topology.py`            | Column rename`capacity_expansion_years` → `simulation_years`                                                                                                                                                                                                                                                                     |
+| `Snakefile`                    | `_R` dependency lambda (wait for base scenario's `solved.nc`); plot rules integrated into `solve_all`                                                                                                                                                                                                                           |
+| `scripts/plot_network_sa.py`   | Map + cost-bar-chart plotting; carrier colours/nice-names in`config.yaml::plotting`; costs displayed as `×1000` (see §3 — this scaling is applied consistently at plot time, only the raw `solved.nc` export is unscaled)                                                                                                    |
 
 Marginal costs for fixed (existing) wind/solar come from `variable_om_cost (R/MWh)` in `fixed_technologies.xlsx::renewables` — genuine VOM, not PPA tariffs (PPAs are capacity-based R/MW/yr and enter as capital/fixed cost). Since RE has no fuel cost, marginal cost ≈ VOM, near-zero.
 
@@ -237,21 +247,23 @@ These results predate the 2026-09-13 changes in §3 (`override_coal_msl` was 0.4
 **Configuration:** `regions=10`, `fixed_conventional=BASE_PMR1b`, `LC-182h` (97 snapshots total across 2 periods, weighted to 8760h/yr each), `override_coal_msl=0.4`, `extendable_max_annual=UNC`, `transmission_grid=existing+tdp`, `line_expansion=copt`. Analysis year 2030 (snapshot_weightings sum 8722h).
 
 ### Dispatch [TWh, 2030]
-| Technology | P0_BASE | P0_CT | P0_BASE_R | P0_CT_R |
-|---|---|---|---|---|
-| Total coal | 91.91 | 89.86 | 77.95 | 77.95 |
-| Total solar | 62.44 | 64.77 | 43.68 | 40.26 |
-| Wind | 43.87 | 44.02 | 90.40 | 95.22 |
-| CCGT | 8.52 | 8.31 | 0.00 | 0.00 |
-| OCGT gas | 22.38 | 22.38 | 22.38 | 22.38 |
-| Nuclear | 14.55 | 14.55 | 14.55 | 14.55 |
+
+| Technology             | P0_BASE          | P0_CT            | P0_BASE_R        | P0_CT_R          |
+| ---------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| Total coal             | 91.91            | 89.86            | 77.95            | 77.95            |
+| Total solar            | 62.44            | 64.77            | 43.68            | 40.26            |
+| Wind                   | 43.87            | 44.02            | 90.40            | 95.22            |
+| CCGT                   | 8.52             | 8.31             | 0.00             | 0.00             |
+| OCGT gas               | 22.38            | 22.38            | 22.38            | 22.38            |
+| Nuclear                | 14.55            | 14.55            | 14.55            | 14.55            |
 | **Total supply** | **258.38** | **258.61** | **263.68** | **265.08** |
 
 ### Emissions & CT Revenue [2030]
-| | P0_BASE | P0_CT | P0_BASE_R | P0_CT_R |
-|---|---|---|---|---|
-| Total CO₂ [MtCO₂] | 116.47 | 113.99 | 101.72 | 101.72 |
-| CT revenue [bn ZAR] | — | 52.66 | 53.81 | 46.99 |
+
+|                     | P0_BASE | P0_CT  | P0_BASE_R | P0_CT_R |
+| ------------------- | ------- | ------ | --------- | ------- |
+| Total CO₂ [MtCO₂] | 116.47  | 113.99 | 101.72    | 101.72  |
+| CT revenue [bn ZAR] | —      | 52.66  | 53.81     | 46.99   |
 
 **Key finding at the time (worth re-testing under current parameters):** P0_BASE_R and P0_CT_R were numerically near-identical — the reinvestment constraint's floor dominated, and the CT price signal added almost nothing on top of it, because CT only reduced BASE emissions by ~2.1% (MSL=0.4 kept coal near its floor already in most hours). This is a big part of the motivation for §3's endogenous-retirement change — daily MSL-driven floor effects are expected to matter less once retirement itself can respond to CT, and the effect should show up more clearly once `LC` (full 8760h) captures the daily solar cycle that creates MSL-free night hours.
 
@@ -264,13 +276,13 @@ These results predate the 2026-09-13 changes in §3 (`override_coal_msl` was 0.4
 Computed under `regions=1`, `override_coal_msl=0.4`, `coal_ramp_rate_multiplier=1.5`, `unit_committment=0`, `extendable_min_total=UNC`, `carbon_tax=CT_2050` — these specific parameters broadly still match the current (inactive) P1 row in §4, so this table is a reasonable reference for what a P1 rerun would look like, **not** a guarantee (rerun before citing in a paper).
 
 | Period | P0_BASE Coal[GW] | Wind[GW] | Solar[GW] | Storage[GW] | Coal[TWh] | RE share |
-|---|---|---|---|---|---|---|
-| 2025 | 41.4 | 4.3 | 2.7 | 3.6 | 181.5 | 8.7% |
-| 2030 | 36.0 | 9.0 | 13.5 | 5.2 | 153.0 | 26.2% |
-| 2035 | 27.0 | 21.2 | 20.5 | 7.3 | 114.7 | 44.4% |
-| 2040 | 27.0 | 33.8 | 22.1 | 9.3 | 102.3 | 53.8% |
-| 2045 | 12.4 | 48.9 | 32.8 | 17.1 | 45.2 | 68.0% |
-| 2050 | 12.4 | 50.6 | 54.3 | 35.6 | 44.4 | 75.3% |
+| ------ | ---------------- | -------- | --------- | ----------- | --------- | -------- |
+| 2025   | 41.4             | 4.3      | 2.7       | 3.6         | 181.5     | 8.7%     |
+| 2030   | 36.0             | 9.0      | 13.5      | 5.2         | 153.0     | 26.2%    |
+| 2035   | 27.0             | 21.2     | 20.5      | 7.3         | 114.7     | 44.4%    |
+| 2040   | 27.0             | 33.8     | 22.1      | 9.3         | 102.3     | 53.8%    |
+| 2045   | 12.4             | 48.9     | 32.8      | 17.1        | 45.2      | 68.0%    |
+| 2050   | 12.4             | 50.6     | 54.3      | 35.6        | 44.4      | 75.3%    |
 
 *(P1_BASE shown; P1_BASE_R / P1_CT / P1_CT_R follow the same shape with progressively higher RE shares by 2050: BASE 75.3%, CT 87.2%, BASE_R 90.0%, CT_R 90.1% — recycling has a larger long-run effect than the price signal alone.)*
 
@@ -283,6 +295,7 @@ Computed under `regions=1`, `override_coal_msl=0.4`, `coal_ramp_rate_multiplier=
 **File:** `paper0_results_analysis.ipynb`. Loads all four P0 `solved.nc` networks (`RESULTS_DIR="results/Coal_Flexibilisation"`), extracts the 2030 period via `get_2030()`, and produces: new-build capacity, generation mix, CO₂ emissions, CT revenue vs. reinvestment, system costs, and a summary CSV (`paper_summary_2030_182h.csv`).
 
 **Running on the server via VS Code + SSH:**
+
 ```bash
 # one-time kernel registration
 /home/users/a/agma/.pixi/envs/pypsa-rsa/bin/python -m ipykernel install --user --name pypsa-rsa --display-name "PyPSA-RSA"
@@ -291,6 +304,7 @@ Computed under `regions=1`, `override_coal_msl=0.4`, `coal_ramp_rate_multiplier=
 nohup /home/users/a/agma/.pixi/envs/pypsa-rsa/bin/jupyter lab --no-browser --port=8899 > ~/jupyter.log 2>&1 &
 cat ~/jupyter.log   # copy the http://localhost:8899/lab?token=... URL
 ```
+
 In VS Code: open the notebook → kernel picker → "Jupyter Server" → "Existing Jupyter Server..." → paste the URL → select the "PyPSA-RSA" kernel. VS Code Remote SSH forwards the port automatically. Stop with `pkill -f "jupyter lab"`.
 
 ---
@@ -298,6 +312,7 @@ In VS Code: open the notebook → kernel picker → "Jupyter Server" → "Existi
 ## 13. How to Run
 
 ### Before every run — checklist
+
 - [ ] `run_scenario` flags correct in `scenarios_to_run.xlsx` (currently: P0 rows `true`, P1 rows `False`)
 - [ ] `options`: `LC` for production, or an explicit test resolution (`LC-182h`, `LC-2190h`, ...) for a quick check — see §6 for what each actually does
 - [ ] `regions`: 10 for P0, 1 for P1
@@ -322,11 +337,13 @@ DAG shape: preprocessing (`build_topology → base_network → add_electricity`)
 ```bash
 sbatch run_p0.job
 ```
+
 Current settings: `--time=14-00:00:00 --mem=200G --cpus-per-task=32`, runs `micromamba run --root-prefix /beegfs/home/users/a/agma/.local/share/mamba -p /beegfs/home/users/a/agma/.pixi/envs/pypsa-rsa snakemake solve_all -j 4 -F --resources solver_slots=2`, includes an hourly heartbeat (`--- HOURLY UPDATE ---`) written to the log to distinguish an active run from a hung one.
 
 **Everything (preprocessing + all 4 solves) shares this one allocation** — fine for small test resolutions (`LC-182h`, `LC-2190h`) where the whole pipeline is lightweight, but **do not reuse this script for a full `LC` (8760h) production run**: four 8760h solves competing for one 200GB/32CPU allocation risks the same class of OOM failure documented for the June 2026 incident (a single 8760h solve needed `mem_mb=200000` on its own once raised). Use `run_head.job` for production instead.
 
 ### Monitoring
+
 ```bash
 squeue --me                                    # all running child/test jobs
 tmux attach -t pypsa                           # live snakemake output (production)
@@ -335,6 +352,7 @@ tail -f $(ls -t logs/snakemake_head_*.log | head -1)   # production head log (la
 ```
 
 ### Cancelling
+
 ```bash
 tmux attach -t pypsa   # then Ctrl+C to stop the head process
 # or
@@ -344,19 +362,24 @@ scancel <jobid>                                    # cancel one job (e.g. a test
 ```
 
 ### Results
+
 ```
 results/Coal_Flexibilisation/{scenario}/{options}/networks/solved.nc
 results/Coal_Flexibilisation/{scenario}/{options}/outputs/plots/{map_only,map_full,pathway}.png
 results/Coal_Flexibilisation/{scenario}/{options}/outputs/generators.csv
 ```
+
 `{options}` is a literal path component (`Snakefile`) — a test run at e.g. `LC-2190h` lands in a separate subfolder from `LC` production results automatically, so a coarse test does **not** overwrite production output as long as the test doesn't also use `options=LC`. (An earlier doc draft recommended a separate `working_folder` for this reason — not strictly necessary given the `{options}` path segment, but still useful when a fully separate results tree is wanted for exploratory/debugging runs.)
 
 Download: `scp -r agma@gateway.hpc.tu-berlin.de:/beegfs/scratch/agma/pypsa-rsa/results ~/Downloads/`
 
 ### Gurobi WLS: stuck sessions ("Overage for too long")
+
 **Symptom:** every solve fails immediately with `GurobiError: Overage for too long, N active sessions...` even though `squeue --me` is empty. **Cause:** a SLURM job was killed (OOM, timeout, Ctrl+C) without Gurobi releasing its WLS session. **Fix:** log in at `https://license.gurobi.com`, find WLS license ID `938810` → Active Sessions → terminate all. **Verify clear:**
+
 ```bash
 export GRB_LICENSE_FILE=/home/users/a/agma/gurobi.lic
 python3 -c "import gurobipy; m = gurobipy.Model(); print('Gurobi OK')"
 ```
+
 **Prevention:** always keep `--resources solver_slots=2` (matches the 2-session WLS academic baseline). Known remaining risk (not yet fixed): every SLURM job — even non-solve preprocessing jobs — briefly opens/closes a WLS session via PuLP's `pulp.listSolvers(onlyAvailable=True)` at Snakemake startup; with many jobs starting simultaneously this can transiently push the count above 2. Low probability, not zero. Possible fixes not yet applied: drop to `solver_slots=1`, or scope `GRB_LICENSE_FILE` to only the actual solve step instead of the whole job shell.

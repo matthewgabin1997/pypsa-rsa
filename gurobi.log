@@ -14346,3 +14346,58 @@ Set parameter LicenseID to value 938810
 Set parameter LogFile to value "gurobi.log"
 Using license file /home/users/a/agma/gurobi.lic
 Academic license 938810 - for non-commercial use only - registered to ag___@tu-berlin.de
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Thu Sep 17 15:48:39 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Thu Sep 17 16:19:38 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
+Academic license - for non-commercial use only - expires 2027-09-16
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Thu Sep 17 16:20:41 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
+Academic license - for non-commercial use only - expires 2027-09-16
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Thu Sep 17 17:44:24 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
+Academic license - for non-commercial use only - expires 2027-09-16
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Thu Sep 17 17:46:01 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
+Academic license - for non-commercial use only - expires 2027-09-16
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Thu Sep 17 17:47:01 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
+Academic license - for non-commercial use only - expires 2027-09-16
+
+Gurobi 13.0.3 (linux64, gurobi_cl) logging started Thu Sep 17 17:52:45 2026
+
+Set parameter Username
+Set parameter LicenseID to value 2864772
+Set parameter LogFile to value "gurobi.log"
+Using license file /home/matthew/gurobi.lic
+Academic license - for non-commercial use only - expires 2027-09-16
