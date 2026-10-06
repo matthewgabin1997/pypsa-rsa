@@ -1232,17 +1232,34 @@ def attach_extendable_generators(n, carriers):
     return gen_emissions
 
 def set_annual_build_limits(techs, ext_years, component):
-    
     build_start_year = snakemake.config["years"]["build_start_year"]
-    add_build_years = ext_years[0] - build_start_year if ext_years[0] - build_start_year > 0 else 0
+    add_build_years = max(ext_years[0] - build_start_year, 0)
 
-    default_lim = {"max":np.inf,"min":0}
-    for lim in ['max',"min"]:
-        annual_limit = pd.read_excel(
-            os.path.join(SCENARIO_SETUP["sub_path"], "extendable_technologies.xlsx"), 
-            sheet_name = f"{lim}_annual_installed",
-            index_col = [0,1,2,3,4,5],
+    default_lim = {"max": np.inf, "min": 0}
+    for lim in ["max", "min"]:
+        workbook_path = os.path.join(
+            SCENARIO_SETUP["sub_path"],
+            "extendable_technologies.xlsx",
         )
+        print(
+            "READING WORKBOOK:",
+            os.path.abspath(workbook_path),
+            flush=True,
+        )
+
+        annual_limit = pd.read_excel(
+            workbook_path,
+            sheet_name=f"{lim}_annual_installed",
+            index_col=[0, 1, 2, 3, 4, 5],
+        )
+
+        print("SHEET:", f"{lim}_annual_installed", flush=True)
+        print(
+            "HEADERS:",
+            [(repr(c), type(c).__name__) for c in annual_limit.columns],
+            flush=True,
+        )
+
         
         if SCENARIO_SETUP[f"extendable_{lim}_annual"] not in annual_limit.index.get_level_values(0) or SCENARIO_SETUP["regions"] not in annual_limit.index.get_level_values(1):
             logger.warning(f"No annual {lim} installed capacity constraints found to apply.")
@@ -1266,10 +1283,25 @@ def set_annual_build_limits(techs, ext_years, component):
                 for carrier in carrier_list:
                     for year in ext_years:
                         if (f"{bus}-{carrier}-{year}" in techs.index) and (carrier in limit.index):
-                            if (lim=="max") & (limit.loc[carrier, year-(weightings.loc[year,]-1):year].fillna(0).sum()==0):
+                            start_year = year - (weightings.loc[year] - 1)
+                            end_year = year
+
+                            # Annual limits require whole-year boundaries.
+                            if start_year != int(start_year) or end_year != int(end_year):
+                                raise ValueError(
+                                    f"Non-integer build interval: {start_year} to {end_year}"
+                                )
+
+                            build_limit = limit.loc[
+                                carrier, int(start_year):int(end_year)
+                            ].fillna(0).sum()
+
+                            if lim == "max" and build_limit == 0:
                                 techs.drop(f"{bus}-{carrier}-{year}", inplace=True)
                             else:
-                                techs.loc[f"{bus}-{carrier}-{year}", f"p_nom_{lim}"] = limit.loc[carrier, year-(weightings.loc[year,]-1):year].fillna(0).sum()
+                                techs.loc[
+                                    f"{bus}-{carrier}-{year}", f"p_nom_{lim}"
+                                ] = build_limit
 
             techs[f"p_nom_{lim}"].fillna(default_lim[lim], inplace=True)
 
