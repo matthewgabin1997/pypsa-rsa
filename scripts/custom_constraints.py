@@ -321,8 +321,7 @@ def reserve_margin_constraints(n, sns, scenario_setup, snakemake):
                     if len(retired_sum) > 0:
                         coal_decom += capacity_credit.loc["coal"] * p_nom * p_nom_retired
 
-            if coal_decom !=0:
-                lhs = lhs - coal_decom
+            lhs = lhs - coal_decom  # MG adjusted: `coal_decom != 0` is always False for a linopy expression (== returns a truthy Constraint), so retired coal was never removed
             rhs = peak.loc[y]*(1+res_mrgn[y]) - fix_cap
             n.model.add_constraints(lhs, ">=", rhs, name = f"reserve_margin_{y}")    
 
