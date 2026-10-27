@@ -1,0 +1,49 @@
+year,measure,component,scenario,value
+2030,GW,Natural-gas OCGT,REF-LC,2.8645835231358134
+2030,GW,Natural-gas OCGT,POL-3GW,3.1502342429149475
+2030,GW,Natural-gas OCGT,POL-6GW,4.736173358996682
+2030,GW,Natural-gas OCGT,POL-18.25GW,4.8748233904051945
+2030,GW,H2-ready OCGT burning natural gas (before conversion),REF-LC,9.63690612560375
+2030,GW,H2-ready OCGT burning natural gas (before conversion),POL-3GW,9.450730455596716
+2030,GW,H2-ready OCGT burning natural gas (before conversion),POL-6GW,8.585183291583997
+2030,GW,H2-ready OCGT burning natural gas (before conversion),POL-18.25GW,8.336933012817726
+2030,GW,CCGT steam (no fuel),REF-LC,1.6797853019384368
+2030,GW,CCGT steam (no fuel),POL-3GW,1.679750431063256
+2030,GW,CCGT steam (no fuel),POL-6GW,1.7950058312481987
+2030,GW,CCGT steam (no fuel),POL-18.25GW,1.795012963319313
+2030,TWh,Natural-gas OCGT,REF-LC,0.061218353681078676
+2030,TWh,Natural-gas OCGT,POL-3GW,0.01915399067074738
+2030,TWh,Natural-gas OCGT,POL-6GW,0.028245429588304886
+2030,TWh,Natural-gas OCGT,POL-18.25GW,0.059287438148842186
+2030,TWh,H2-ready OCGT burning natural gas (before conversion),REF-LC,6.5490837748316775
+2030,TWh,H2-ready OCGT burning natural gas (before conversion),POL-3GW,6.591159126242525
+2030,TWh,H2-ready OCGT burning natural gas (before conversion),POL-6GW,7.359399375635308
+2030,TWh,H2-ready OCGT burning natural gas (before conversion),POL-18.25GW,6.945430361676549
+2030,TWh,CCGT steam (no fuel),REF-LC,2.8225992465003844
+2030,TWh,CCGT steam (no fuel),POL-3GW,2.8226038535847375
+2030,TWh,CCGT steam (no fuel),POL-6GW,3.1545244204406515
+2030,TWh,CCGT steam (no fuel),POL-18.25GW,2.991014734628954
+2050,GW,Natural-gas OCGT,REF-LC,10.747354697290321
+2050,GW,Natural-gas OCGT,POL-3GW,11.242379569978118
+2050,GW,Natural-gas OCGT,POL-6GW,12.694556586367812
+2050,GW,Natural-gas OCGT,POL-18.25GW,19.206600741117665
+2050,GW,H2-ready OCGT burning natural gas (before conversion),REF-LC,4.939767027936008e-05
+2050,GW,H2-ready OCGT burning natural gas (before conversion),POL-3GW,1.7969098405637602e-05
+2050,GW,H2-ready OCGT burning natural gas (before conversion),POL-6GW,1.5634784004368387e-05
+2050,GW,H2-ready OCGT burning natural gas (before conversion),POL-18.25GW,4.4253672338844644e-05
+2050,GW,CCGT steam (no fuel),REF-LC,4.3561060266466916
+2050,GW,CCGT steam (no fuel),POL-3GW,4.356132579226698
+2050,GW,CCGT steam (no fuel),POL-6GW,4.356138489451198
+2050,GW,CCGT steam (no fuel),POL-18.25GW,5.461072652323157
+2050,TWh,Natural-gas OCGT,REF-LC,6.461025317142352
+2050,TWh,Natural-gas OCGT,POL-3GW,6.461100903321155
+2050,TWh,Natural-gas OCGT,POL-6GW,6.46110510894725
+2050,TWh,Natural-gas OCGT,POL-18.25GW,6.449213711638498
+2050,TWh,H2-ready OCGT burning natural gas (before conversion),REF-LC,5.861176806398285e-05
+2050,TWh,H2-ready OCGT burning natural gas (before conversion),POL-3GW,1.990809318056257e-05
+2050,TWh,H2-ready OCGT burning natural gas (before conversion),POL-6GW,1.6984323528575863e-05
+2050,TWh,H2-ready OCGT burning natural gas (before conversion),POL-18.25GW,4.884738755890227e-05
+2050,TWh,CCGT steam (no fuel),REF-LC,2.758925385083969
+2050,TWh,CCGT steam (no fuel),POL-3GW,2.758912388439646
+2050,TWh,CCGT steam (no fuel),POL-6GW,2.7589108156597932
+2050,TWh,CCGT steam (no fuel),POL-18.25GW,2.753869041880965
