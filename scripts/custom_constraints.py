@@ -157,6 +157,127 @@ def apply_operational_constraints(n, sns, **kwargs):
 
         n.model.add_constraints(lhs, sense, rhs, name = f'{limit}-{kwargs["carrier"]}-hour-{kwargs["apply_to"][:3]}')
 
+# MG added: gas-utilisation floor indexed to policy-mandated gas-turbine capacity (gas-to-power study)
+MANDATE_CF_CONTRACT_YEARS = 20  # research assumption informed by South African gas procurement / PPA practice, not a universal contract term
+MANDATE_CF_TYPE = "mandate_capacity_factor"  # value in the `capacity_factor` (type) column of operational_constraints.xlsx
+
+def _mandate_cf_value(values, y):
+    # MG added: read the floor for investment period y from a workbook row (year columns may be int or str)
+    for key in (y, str(y)):
+        if key in values.index:
+            v = values[key]
+            return None if pd.isna(v) else float(v)
+    return None
+
+def apply_mandate_cf_floor(n, sns, carrier, bus, values, period, incl_pu, limit, apply_to, units, label=""):
+    """
+    MG added. Fleet-level minimum natural-gas generation obligation indexed to policy-mandated
+    gas-turbine capacity. This is a minimum-generation requirement, not a financially explicit
+    take-or-pay agreement.
+
+    For each investment period y and each month (period == "month") or the whole year
+    (period == "year"):
+
+        sum_t w_t * sum_{g in G} p_{g,t}  >=  f_y * sum_t w_t * sum_{g in M_y} p_nom_min_g * p_max_pu_{g,t}
+
+    - G   : extendable generators of `carrier` (e.g. ocgt_gas, all vintages). Their aggregate
+            dispatch can meet the obligation; generation is not assigned to individual mandated MW.
+    - M_y : "mandated" vintages, i.e. members of G with p_nom_min > 0 (set by the
+            extendable_min_annual label), active in y and within the contract window
+            build_year <= y < build_year + MANDATE_CF_CONTRACT_YEARS. Endogenous capacity above
+            p_nom_min does not enter the right-hand side, so it carries no obligation of its own.
+    - f_y : floor as a fraction (0-1) taken from the workbook column for year y.
+    - p_max_pu is applied if incl_pu is True (available-capacity basis); otherwise nameplate.
+    - w_t : n.snapshot_weightings.generators (hours represented by each snapshot); months are the
+            actual calendar months of the snapshot timesteps.
+
+    With a 2030 vintage and a 20-year contract, the floor is active in the 2030, 2035, 2040 and 2045
+    periods (calendar years 2030-2049) and inactive in 2050, whatever the workbook values are.
+    The constraint is added only for rows whose type is MANDATE_CF_TYPE, so all other
+    operational-limit configurations (e.g. NO_GAS_FLOOR, NO_MIN_GAS) are unaffected.
+    """
+    carriers = [c.strip() for c in carrier.split("+")]
+    if "ccgt_steam" in carriers:
+        raise ValueError("Mandate CF floor must not be applied to ccgt_steam (no independent steam utilisation floor).")
+    if limit != "min":
+        raise ValueError(f"Mandate CF floor supports limit='min' only, got '{limit}'.")
+    if apply_to != "extendable":
+        raise ValueError(f"Mandate CF floor supports apply_to='extendable' only, got '{apply_to}'.")
+    if period not in ["month", "year"]:
+        raise ValueError(f"Mandate CF floor supports period 'month' or 'year' only, got '{period}'.")
+    if not n.multi_invest:
+        raise ValueError("Mandate CF floor is implemented for multi-period investment networks only.")
+    if units not in ["%", "pu", "fraction"]:
+        raise ValueError(f"Mandate CF floor values must be fractions (units '%', 'pu' or 'fraction'), got '{units}'.")
+    incl_pu = incl_pu if isinstance(incl_pu, bool) else str(incl_pu).strip().lower() in ["true", "1", "1.0"]
+
+    floors = {y: _mandate_cf_value(values, y) for y in n.investment_periods}
+    for y, f in floors.items():
+        if f is not None and (f < 0 or f > 1):
+            raise ValueError(f"Mandate CF floor ({label}, {carrier}) for {y} is {f}; values must be fractions between 0 and 1.")
+    positive = [y for y, f in floors.items() if f is not None and f > 0]
+    if not positive:
+        logger.info(f"Mandate CF floor ({label}, {carrier}): no positive floor in any investment period, nothing added.")
+        return
+
+    gens = n.generators.query("carrier in @carriers & p_nom_extendable")
+    if bus != "global":
+        gens = gens.query("bus == @bus")
+    mandated = gens.index[gens["p_nom_min"] > 0]
+    if len(mandated) == 0:
+        raise ValueError(
+            f"Mandate CF floor ({label}, {carrier}): positive floor requested for {positive} but no extendable "
+            f"'{carrier}' generator with p_nom_min > 0 (mandated capacity) was found. Check extendable_min_annual."
+        )
+
+    p_nom_min = n.generators.loc[mandated, "p_nom_min"]
+    build_year = n.generators.loc[mandated, "build_year"]
+    p_max_pu = get_as_dense(n, "Generator", "p_max_pu", sns)[mandated] if incl_pu else pd.DataFrame(1.0, index=sns, columns=mandated)
+    w = n.snapshot_weightings.generators.loc[sns]
+    p = n.model.variables["Generator-p"]
+
+    for y in positive:
+        f = floors[y]
+        sns_y = sns[sns.get_level_values(0) == y]
+        if len(sns_y) == 0:
+            continue
+
+        active = n.get_active_assets("Generator", y).reindex(mandated).fillna(False).astype(bool)
+        if not active.any():
+            raise ValueError(
+                f"Mandate CF floor ({label}, {carrier}): positive floor {f} requested for {y} but no mandated "
+                f"'{carrier}' capacity is active in that period."
+            )
+        in_contract = (build_year <= y) & (y < build_year + MANDATE_CF_CONTRACT_YEARS)
+        m_y = mandated[active & in_contract]
+        if len(m_y) == 0:
+            logger.info(
+                f"Mandate CF floor ({label}, {carrier}) {y}: outside the {MANDATE_CF_CONTRACT_YEARS}-year contract "
+                f"window of all mandated vintages, no floor added."
+            )
+            continue
+
+        # required generation per snapshot [MWh]: f * w_t * sum_g p_nom_min_g * p_max_pu_g,t
+        rhs_t = f * p_max_pu.loc[sns_y, m_y].mul(p_nom_min[m_y], axis=1).sum(axis=1).mul(w.loc[sns_y])
+        # weighted aggregate dispatch of all extendable units of the carrier [MWh]
+        w_df = pd.DataFrame(1.0, index=sns_y, columns=gens.index).mul(w.loc[sns_y], axis=0)
+        w_df.index.name, w_df.columns.name = "snapshot", "Generator"
+
+        groups = sns_y.get_level_values(1).month if period == "month" else [y] * len(sns_y)
+        for grp in pd.unique(groups):
+            sns_g = sns_y[groups == grp] if period == "month" else sns_y
+            rhs = float(rhs_t.loc[sns_g].sum())
+            if rhs <= 0:
+                continue
+            lhs = (p.loc[sns_g, gens.index] * w_df.loc[sns_g]).sum()
+            suffix = f"{y}-{int(grp):02d}" if period == "month" else f"{y}"
+            n.model.add_constraints(lhs, ">=", rhs, name=f"mandate_cf_floor-{carrier}-{period}-{suffix}")
+
+        logger.info(
+            f"Mandate CF floor ({label}, {carrier}, {period}) {y}: f={f:.2f}, mandated MW={p_nom_min[m_y].sum():.0f}, "
+            f"required {rhs_t.sum()/1e6:.3f} TWh/yr (incl_pu={incl_pu})."
+        )
+
 def set_operational_limits(n, sns, scenario_setup, snakemake, exclude_flag=[]):
 
     op_limits = pd.read_excel(
@@ -177,6 +298,15 @@ def set_operational_limits(n, sns, scenario_setup, snakemake, exclude_flag=[]):
     #drop rows where all NaN
     op_limits = op_limits.loc[~(op_limits.isna().all(axis=1))]
     for idx, row in op_limits.iterrows():
+        if idx[2] == MANDATE_CF_TYPE:  # MG added: route mandate floors to their own function; all other rows unchanged
+            apply_mandate_cf_floor(
+                n, sns,
+                carrier = idx[1], bus = idx[0],
+                values = row, period = idx[3], incl_pu = idx[4],
+                limit = idx[5], apply_to = idx[6], units = idx[7],
+                label = scenario_setup["operational_limits"],
+            )
+            continue
         apply_operational_constraints(
             n, sns, 
             bus = idx[0], carrier = idx[1], 
